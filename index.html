@@ -1,0 +1,1447 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ultimate Guitar Tab Printer</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/pdfmake.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/vfs_fonts.js"></script>
+    <!-- VexChords library from CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/vexchords@1.2.0/dist/vexchords.dev.min.js"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            line-height: 1.5;
+            margin: 0;
+            padding: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+            color: #333;
+        }
+        
+        .container {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        h1 {
+            margin-bottom: 10px;
+            color: #1a73e8;
+        }
+        
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 20px;
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-radius: 8px;
+        }
+        
+        .url-input {
+            flex: 1;
+            min-width: 300px;
+        }
+        
+        input, select, button {
+            padding: 10px;
+            border-radius: 4px;
+            border: 1px solid #dadce0;
+            font-size: 14px;
+        }
+        
+        input[type="text"] {
+            width: 100%;
+        }
+        
+        button {
+            background-color: #1a73e8;
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-weight: 500;
+            transition: background-color 0.2s;
+        }
+        
+        button:hover {
+            background-color: #1557b0;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 20px;
+        }
+        
+        .transpose-control {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .transpose-control label {
+            min-width: 100px;
+        }
+        
+        .options-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+        
+        .radio-group {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        .sheet {
+            font-family: 'Courier New', monospace;
+            padding: 30px;
+            background-color: white;
+            border: 1px solid #dadce0;
+            border-radius: 8px;
+            white-space: pre-wrap;
+        }
+        
+        .artist {
+            font-size: 20px;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        
+        .song {
+            font-size: 18px;
+            margin-bottom: 20px;
+        }
+        
+        .chords {
+            white-space: pre-wrap;
+            tab-size: 4;
+        }
+        
+        .chord {
+            font-weight: bold;
+        }
+        
+        .error-message {
+            color: #d93025;
+            padding: 10px;
+            background-color: #fee;
+            border-radius: 4px;
+            display: none;
+        }
+        
+        .tab-section {
+            font-family: 'Courier New', monospace;
+            white-space: pre;
+            overflow-x: auto;
+        }
+        
+        .chord-diagram {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin: 15px 0;
+        }
+        
+        .chord-name {
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        
+        .chord-diagrams-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            margin-top: 20px;
+            justify-content: center;
+        }
+        
+        .diagram-section {
+            margin-top: 30px;
+            border-top: 1px solid #ddd;
+            padding-top: 20px;
+            width: 100%;
+        }
+        
+        .chord-controls {
+            margin-top: 15px;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        
+        @media print {
+            .controls, .header, .error-message {
+                display: none;
+            }
+            
+            .sheet {
+                border: none;
+                padding: 0;
+            }
+            
+            body {
+                padding: 0;
+            }
+        }
+        
+        @media (max-width: 768px) {
+            .controls {
+                flex-direction: column;
+            }
+            
+            .url-input {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Ultimate Guitar Tab Printer</h1>
+            <p>Load tabs from Ultimate Guitar, transpose them, and print or save as PDF</p>
+        </div>
+        
+        <div class="controls">
+            <div class="url-input">
+                <input type="text" id="url-input" placeholder="Paste Ultimate Guitar URL or tab content here" />
+            </div>
+            
+            <div class="options-group">
+                <div class="transpose-control">
+                    <label for="transpose-input">Transpose:</label>
+                    <input type="range" id="transpose-input" min="-12" max="12" value="0" />
+                    <span id="transpose-value">0</span>
+                </div>
+                
+                <div class="radio-group">
+                    <input type="radio" id="use-sharps" name="halftone-style" value="SHARPS" />
+                    <label for="use-sharps">Use #</label>
+                    
+                    <input type="radio" id="use-flats" name="halftone-style" value="FLATS" checked />
+                    <label for="use-flats">Use ♭</label>
+                </div>
+                
+                <div class="checkbox-group">
+                    <input type="checkbox" id="simplify-chords" />
+                    <label for="simplify-chords">Simplify chords</label>
+                </div>
+                
+                <div class="checkbox-group">
+                    <input type="checkbox" id="show-diagrams" />
+                    <label for="show-diagrams">Show chord diagrams</label>
+                </div>
+            </div>
+            
+            <button id="load-btn">Load Tab</button>
+            <button id="print-btn">Print</button>
+            <button id="pdf-btn">Download PDF</button>
+            <button id="load-example-btn">Load Example</button>
+        </div>
+        
+        <div id="error-message" class="error-message"></div>
+        
+        <div id="loading" class="loading" style="display: none;">
+            Loading tab content...
+        </div>
+        
+        <div class="sheet" id="sheet">
+            <div id="artist" class="artist"></div>
+            <div id="song" class="song"></div>
+            <div id="chords" class="chords">Paste a Ultimate Guitar URL and press "Load Tab"</div>
+            <div id="chord-diagrams" class="chord-diagrams-container" style="display: none;"></div>
+        </div>
+    </div>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const urlInput = document.getElementById('url-input');
+            const loadBtn = document.getElementById('load-btn');
+            const printBtn = document.getElementById('print-btn');
+            const pdfBtn = document.getElementById('pdf-btn');
+            const artistEl = document.getElementById('artist');
+            const songEl = document.getElementById('song');
+            const chordsEl = document.getElementById('chords');
+            const errorMessage = document.getElementById('error-message');
+            const loading = document.getElementById('loading');
+            const transposeInput = document.getElementById('transpose-input');
+            const transposeValue = document.getElementById('transpose-value');
+            const useSharpRadio = document.getElementById('use-sharps');
+            const useFlatRadio = document.getElementById('use-flats');
+            const simplifyCheckbox = document.getElementById('simplify-chords');
+            
+            // Current state
+            let currentChords = '';
+            let currentArtist = '';
+            let currentSong = '';
+            
+            // CORS proxy options
+            const corsProxies = [
+                'https://corsproxy.io/?url=',
+                'https://api.allorigins.win/raw?url=',
+                'https://cors-anywhere.herokuapp.com/'
+            ];
+            
+            // Event listeners
+            loadBtn.addEventListener('click', loadTab);
+            printBtn.addEventListener('click', printTab);
+            pdfBtn.addEventListener('click', downloadPDF);
+            document.getElementById('load-example-btn').addEventListener('click', loadExampleTab);
+            transposeInput.addEventListener('input', updateTransposeValue);
+            transposeInput.addEventListener('change', transposeChords);
+            useSharpRadio.addEventListener('change', updateNotation);
+            useFlatRadio.addEventListener('change', updateNotation);
+            simplifyCheckbox.addEventListener('change', updateNotation);
+            document.getElementById('show-diagrams').addEventListener('change', toggleChordDiagrams);
+            
+            // Load tab from URL
+            async function loadTab() {
+                const url = urlInput.value.trim();
+                
+                if (!url) {
+                    showError("Please enter a URL");
+                    return;
+                }
+                
+                showLoading(true);
+                hideError();
+                
+                try {
+                    // Check if it's our direct example
+                    if (url === 'example' || url.toLowerCase() === 'load example') {
+                        loadExampleTab();
+                        return;
+                    }
+                    
+                    // If input doesn't look like a URL, treat as direct content
+                    if (!url.startsWith('http')) {
+                        console.log('Treating input as direct content');
+                        currentArtist = '';
+                        currentSong = '';
+                        currentChords = url;
+                        
+                        // Try to extract artist and song from first line
+                        const lines = url.split('\n');
+                        if (lines.length > 0 && lines[0].includes(' - ')) {
+                            const parts = lines[0].split(' - ');
+                            currentArtist = parts[0].trim();
+                            currentSong = parts[1].trim();
+                        }
+                        
+                        artistEl.textContent = currentArtist;
+                        songEl.textContent = currentSong;
+                        formatAndDisplayChords();
+                        showLoading(false);
+                        return;
+                    }
+                    
+                    if (!url.includes('ultimate-guitar.com') && !url.includes('tabs.ultimate-guitar.com')) {
+                        showError("Please enter a valid Ultimate Guitar URL");
+                        showLoading(false);
+                        return;
+                    }
+                    
+                    console.log('Fetching tab from URL:', url);
+                    
+                    // Try each CORS proxy until one works
+                    let html = null;
+                    let error = null;
+                    
+                    for (const proxy of corsProxies) {
+                        try {
+                            // Different handling based on proxy format
+                            let proxyUrl;
+                            if (proxy.includes('?url=')) {
+                                // For proxies that use ?url= parameter
+                                proxyUrl = `${proxy}${encodeURIComponent(url)}`;
+                            } else {
+                                // For proxies that directly prefix the URL
+                                proxyUrl = `${proxy}${url}`;
+                            }
+                            
+                            console.log(`Trying proxy: ${proxyUrl}`);
+                            const response = await fetch(proxyUrl);
+                            
+                            if (!response.ok) {
+                                throw new Error(`Failed to fetch content: ${response.status}`);
+                            }
+                            
+                            html = await response.text();
+                            console.log(`Successfully fetched content with ${proxy}`);
+                            
+                            // Log a small sample of the HTML for debugging
+                            console.log('HTML sample:', html.substring(0, 500) + '...');
+                            
+                            break; // If successful, exit the loop
+                        } catch (err) {
+                            error = err;
+                            console.log(`Proxy ${proxy} failed:`, err);
+                            // Continue to the next proxy
+                        }
+                    }
+                    
+                    if (!html) {
+                        console.log('All proxies failed. Falling back to example tab.');
+                        showError("Could not load tab from URL. Using example tab instead.");
+                        loadExampleTab();
+                        return;
+                    }
+                    
+                    console.log('Attempting to extract tab data from fetched HTML');
+                    
+                    // Parse the tab content
+                    const tabData = extractTabData(html);
+                    
+                    if (!tabData || !tabData.content) {
+                        console.log('Tab extraction failed. Falling back to example tab.');
+                        showError("Could not extract tab from the URL. Using example tab instead.");
+                        loadExampleTab();
+                        return;
+                    }
+                    
+                    console.log('Successfully extracted tab data:', { 
+                        artist: tabData.artist,
+                        song: tabData.song,
+                        contentLength: tabData.content.length
+                    });
+                    
+                    // Update state
+                    currentArtist = tabData.artist || '';
+                    currentSong = tabData.song || '';
+                    currentChords = tabData.content || '';
+                    
+                    // Update UI
+                    artistEl.textContent = currentArtist;
+                    songEl.textContent = currentSong;
+                    
+                    // Format chords
+                    formatAndDisplayChords();
+                    
+                } catch (error) {
+                    console.error('Error loading tab:', error);
+                    showError("Failed to load tab. Try a different URL or check your internet connection.");
+                    loadExampleTab(); // Fall back to example
+                } finally {
+                    showLoading(false);
+                }
+            }
+            
+            // Extract tab data from HTML
+            function extractTabData(html) {
+                try {
+                    console.log('Attempting to extract tab data...');
+                    
+                    // Create a DOM parser
+                    const parser = new DOMParser();
+                    const doc = parser.parseFromString(html, 'text/html');
+                    
+                    console.log('HTML parsed. Looking for JS store...');
+                    
+                    // Try to extract data from JS store (modern UG approach)
+                    const storeElements = doc.querySelectorAll('.js-store');
+                    console.log('Found', storeElements.length, 'store elements');
+                    
+                    if (storeElements.length > 0) {
+                        for (const store of storeElements) {
+                            try {
+                                const dataContent = store.getAttribute('data-content');
+                                if (dataContent) {
+                                    console.log('Found data-content attribute');
+                                    const storeData = JSON.parse(dataContent);
+                                    
+                                    // Extract data from store
+                                    let content = findInObject(storeData, 'content')[0];
+                                    let song = findInObject(storeData, 'song_name')[0];
+                                    let artist = findInObject(storeData, 'artist_name')[0];
+                                    
+                                    if (content) {
+                                        console.log('Successfully extracted content from store');
+                                        return { content, song, artist };
+                                    }
+                                }
+                            } catch (err) {
+                                console.log('Error parsing store data:', err);
+                            }
+                        }
+                    }
+                    
+                    console.log('Falling back to direct content extraction...');
+                    
+                    // Check if we got a CORS proxy response page instead of the actual content
+                    if (html.includes('Access denied') || html.includes('Error 1020')) {
+                        console.log('Detected CORS proxy error page');
+                        return null;
+                    }
+                    
+                    // Fallback: try to extract tab content directly
+                    const tabContentSelectors = [
+                        'div.js-tab-content',
+                        'code.nr2Gp pre.xNWlr',
+                        'div[class*="Tablature"] pre',
+                        'pre[class*="tab"]',
+                        'div.tab-content pre',
+                        'div.tab_cnt',
+                        'div.js-tab',
+                        'pre.tab-content',
+                        'div.tab_content',
+                        'div.Tablature__content',
+                        'pre.js-tab-content'
+                    ];
+                    
+                    // Try each selector
+                    for (const selector of tabContentSelectors) {
+                        console.log('Trying selector:', selector);
+                        const element = doc.querySelector(selector);
+                        if (element) {
+                            console.log('Found element with selector:', selector);
+                            let content = element.textContent || element.innerHTML;
+                            
+                            // Try to extract song and artist from the page
+                            let song = '';
+                            let artist = '';
+                            
+                            const titleElements = doc.querySelectorAll('h1');
+                            if (titleElements.length > 0) {
+                                const titleText = titleElements[0].textContent;
+                                console.log('Found title:', titleText);
+                                const parts = titleText.split(' - ');
+                                if (parts.length >= 2) {
+                                    artist = parts[0].trim();
+                                    song = parts[1].trim().replace(/ tab$| chords$/i, '');
+                                }
+                            }
+                            
+                            return { content, song, artist };
+                        }
+                    }
+                    
+                    console.log('Looking for any tab-like content in the page...');
+                    
+                    // As a last resort, find any preformatted text that looks like tab content
+                    const allPres = doc.querySelectorAll('pre');
+                    console.log('Found', allPres.length, 'pre elements');
+                    for (const pre of allPres) {
+                        const text = pre.textContent;
+                        if (text.includes('|--') || text.includes('e|--') || text.includes('E|--')) {
+                            console.log('Found tab-like content in pre element');
+                            return { content: text, song: '', artist: '' };
+                        }
+                    }
+                    
+                    // Last ditch effort - look for any div with a class that might contain tab content
+                    const potentialContainers = doc.querySelectorAll('div[class*="tab"], div[class*="Tab"], div[class*="content"], div[class*="Content"]');
+                    console.log('Found', potentialContainers.length, 'potential containers');
+                    for (const container of potentialContainers) {
+                        const text = container.textContent;
+                        if (text && text.length > 200 && (text.includes('|--') || text.includes('chord') || text.includes('Chord'))) {
+                            console.log('Found potential tab content in container');
+                            return { content: text, song: '', artist: '' };
+                        }
+                    }
+                    
+                    // Try to just find the tab content directly in the HTML
+                    if (html.includes('|--') || html.includes('e|--') || html.includes('E|--')) {
+                        console.log('Found tab notation in raw HTML');
+                        // Try to extract a reasonable chunk of text around the tab notation
+                        const startIndex = Math.max(0, html.indexOf('|--') - 100);
+                        const endIndex = Math.min(html.length, html.lastIndexOf('|--') + 1000);
+                        const rawContent = html.substring(startIndex, endIndex);
+                        return { content: rawContent, song: '', artist: '' };
+                    }
+                    
+                    console.log('Could not find tab content in the page');
+                    return null;
+                } catch (error) {
+                    console.error('Error extracting tab data:', error);
+                    return null;
+                }
+            }
+            
+            // Helper function to find keys in nested objects
+            function findInObject(obj, key) {
+                let objects = [];
+                const keys = Object.keys(obj || {});
+                
+                for (let i = 0; i < keys.length; i += 1) {
+                    const _key = keys[i];
+                    if (Object.prototype.hasOwnProperty.call(obj, _key)) {
+                        if (typeof obj[_key] === 'object' && obj[_key] !== null) {
+                            objects = [...objects, ...findInObject(obj[_key], key)];
+                        } else if (_key === key) {
+                            objects.push(obj[_key]);
+                        }
+                    }
+                }
+                
+                return objects;
+            }
+            
+            // Format chords and display them
+            function formatAndDisplayChords() {
+                let formattedChords = currentChords;
+                
+                // Format [ch] tags for displaying
+                formattedChords = formattedChords.replace(/\[ch\]/g, '<span class="chord">');
+                formattedChords = formattedChords.replace(/\[\/ch\]/g, '</span>');
+                
+                // Format [tab] tags
+                formattedChords = formattedChords.replace(/\[tab\]/g, '<div class="tab-section">');
+                formattedChords = formattedChords.replace(/\[\/tab\]/g, '</div>');
+                
+                chordsEl.innerHTML = formattedChords;
+                
+                // Extract chord names for diagrams
+                extractAndDisplayChordDiagrams();
+            }
+            
+            // Extract chord names and generate diagrams
+            function extractAndDisplayChordDiagrams() {
+                const diagramsContainer = document.getElementById('chord-diagrams');
+                diagramsContainer.innerHTML = '';
+                
+                if (!currentChords) return;
+                
+                // Extract all chord names between [ch] tags
+                const chordRegex = /\[ch\](.*?)\[\/ch\]/g;
+                const matches = currentChords.matchAll(chordRegex);
+                
+                // Collect unique chord names
+                const uniqueChords = new Set();
+                for (const match of matches) {
+                    const chordName = match[1].trim();
+                    uniqueChords.add(chordName);
+                }
+                
+                // If no chords found, hide the container
+                if (uniqueChords.size === 0) {
+                    diagramsContainer.style.display = 'none';
+                    return;
+                }
+                
+                // Add a section title
+                const title = document.createElement('h3');
+                title.textContent = 'Chord Diagrams';
+                title.className = 'diagram-section';
+                diagramsContainer.appendChild(title);
+                
+                // Create diagrams for each chord
+                uniqueChords.forEach(chordName => {
+                    try {
+                        // Create chord diagram container
+                        const diagramContainer = document.createElement('div');
+                        diagramContainer.className = 'chord-diagram';
+                        
+                        // Add chord name
+                        const nameElement = document.createElement('div');
+                        nameElement.className = 'chord-name';
+                        nameElement.textContent = chordName;
+                        diagramContainer.appendChild(nameElement);
+                        
+                        // Create div for the chord diagram
+                        const diagramDiv = document.createElement('div');
+                        diagramDiv.className = 'chord-box';
+                        diagramContainer.appendChild(diagramDiv);
+                        
+                        // Add to container
+                        diagramsContainer.appendChild(diagramContainer);
+                        
+                        // Render chord diagram using VexChords
+                        renderChordDiagram(diagramDiv, chordName);
+                    } catch (error) {
+                        console.error(`Error creating diagram for chord ${chordName}:`, error);
+                    }
+                });
+                
+                // Show diagrams if checkbox is checked
+                if (document.getElementById('show-diagrams').checked) {
+                    diagramsContainer.style.display = 'flex';
+                }
+            }
+            
+            // Toggle chord diagrams visibility
+            function toggleChordDiagrams() {
+                const showDiagrams = document.getElementById('show-diagrams').checked;
+                const diagramsContainer = document.getElementById('chord-diagrams');
+                
+                if (showDiagrams) {
+                    extractAndDisplayChordDiagrams();
+                    diagramsContainer.style.display = 'flex';
+                } else {
+                    diagramsContainer.style.display = 'none';
+                }
+            }
+            
+            // Render a chord diagram using VexChords
+            function renderChordDiagram(element, chordName) {
+                try {
+                    // Get chord definition
+                    const chordDef = getChordDefinition(chordName);
+                    
+                    if (!chordDef) {
+                        console.log(`No definition found for chord: ${chordName}`);
+                        return;
+                    }
+                    
+                    // Create a new ChordBox instance
+                    const chordBox = new ChordBox(element, {
+                        width: 130,
+                        height: 150,
+                        strokeStyle: "#444",
+                        fillStyle: "#444",
+                        fontFamily: "Arial",
+                        fontSize: 12,
+                        showTuning: false,
+                        defaultColor: "#444"
+                    });
+                    
+                    // Convert positions to the format expected by VexChords
+                    const formattedPositions = [];
+                    for (let i = 0; i < chordDef.positions[0].length; i++) {
+                        const stringNum = 6 - i; // Convert to 1-based string numbering
+                        const fret = chordDef.positions[0][i];
+                        
+                        if (fret !== undefined && fret !== null) {
+                            if (fret === -1) {
+                                formattedPositions.push([stringNum, 'x']); // Muted string
+                            } else {
+                                formattedPositions.push([stringNum, fret]); // Normal fretted note
+                            }
+                        }
+                    }
+                    
+                    // Draw the chord diagram
+                    chordBox.draw({
+                        chord: formattedPositions,
+                        position: 0, // start fret
+                        barres: chordDef.barres || []
+                    });
+                    
+                } catch (error) {
+                    console.error(`Error rendering chord diagram for ${chordName}:`, error);
+                }
+            }
+            
+            // Get chord definition based on name
+            function getChordDefinition(chordName) {
+                // Basic chord definitions dictionary
+                const chordLibrary = {
+                    // Major chords
+                    'C':    { positions: [[0, 3, 2, 0, 1, 0]], barres: [] },
+                    'D':    { positions: [[2, 0, 0, 2, 3, 2]], barres: [] },
+                    'E':    { positions: [[0, 2, 2, 1, 0, 0]], barres: [] },
+                    'F':    { positions: [[1, 3, 3, 2, 1, 1]], barres: [{fromString: 6, toString: 1, fret: 1}] },
+                    'G':    { positions: [[3, 2, 0, 0, 0, 3]], barres: [] },
+                    'A':    { positions: [[0, 0, 2, 2, 2, 0]], barres: [] },
+                    'B':    { positions: [[2, 4, 4, 4, 2, 2]], barres: [{fromString: 5, toString: 1, fret: 2}] },
+                    
+                    // Minor chords
+                    'Cm':   { positions: [[3, 5, 5, 3, 3, 3]], barres: [{fromString: 6, toString: 1, fret: 3}] },
+                    'Dm':   { positions: [[1, 0, 0, 2, 3, 1]], barres: [] },
+                    'Em':   { positions: [[0, 2, 2, 0, 0, 0]], barres: [] },
+                    'Fm':   { positions: [[1, 3, 3, 1, 1, 1]], barres: [{fromString: 6, toString: 1, fret: 1}] },
+                    'Gm':   { positions: [[3, 5, 5, 3, 3, 3]], barres: [{fromString: 6, toString: 1, fret: 3}] },
+                    'Am':   { positions: [[0, 0, 2, 2, 1, 0]], barres: [] },
+                    'Bm':   { positions: [[2, 4, 4, 4, 2, 2]], barres: [{fromString: 5, toString: 1, fret: 2}] },
+                    
+                    // 7th chords
+                    'C7':   { positions: [[0, 3, 2, 3, 1, 0]], barres: [] },
+                    'D7':   { positions: [[2, 0, 0, 2, 1, 2]], barres: [] },
+                    'E7':   { positions: [[0, 2, 0, 1, 0, 0]], barres: [] },
+                    'F7':   { positions: [[1, 3, 1, 2, 1, 1]], barres: [{fromString: 6, toString: 1, fret: 1}] },
+                    'G7':   { positions: [[3, 2, 0, 0, 0, 1]], barres: [] },
+                    'A7':   { positions: [[0, 0, 2, 0, 2, 0]], barres: [] },
+                    'B7':   { positions: [[2, 4, 2, 4, 2, 2]], barres: [{fromString: 5, toString: 1, fret: 2}] },
+                    
+                    // Major 7th chords
+                    'Cmaj7': { positions: [[0, 3, 2, 0, 0, 0]], barres: [] },
+                    // Major 7th chords
+                    'Cmaj7': { positions: [[0, 3, 2, 0, 0, 0]], barres: [] },
+                    'Dmaj7': { positions: [[2, 0, 0, 2, 2, 2]], barres: [] },
+                    'Emaj7': { positions: [[0, 2, 1, 1, 0, 0]], barres: [] },
+                    'Fmaj7': { positions: [[1, 3, 2, 2, 1, 1]], barres: [{fromString: 6, toString: 1, fret: 1}] },
+                    'Gmaj7': { positions: [[3, 2, 0, 0, 0, 2]], barres: [] },
+                    'Amaj7': { positions: [[0, 0, 2, 1, 2, 0]], barres: [] },
+                    'Bmaj7': { positions: [[2, 4, 3, 4, 2, 2]], barres: [{fromString: 5, toString: 1, fret: 2}] },
+                    
+                    // Sus chords
+                    'Csus4': { positions: [[0, 3, 3, 0, 1, 0]], barres: [] },
+                    'Dsus4': { positions: [[0, 0, 0, 2, 3, 0]], barres: [] },
+                    'Esus4': { positions: [[0, 2, 2, 2, 0, 0]], barres: [] },
+                    'Fsus4': { positions: [[1, 3, 3, 3, 1, 1]], barres: [{fromString: 6, toString: 1, fret: 1}] },
+                    'Gsus4': { positions: [[3, 3, 0, 0, 1, 3]], barres: [] },
+                    'Asus4': { positions: [[0, 0, 2, 2, 3, 0]], barres: [] },
+                    'Bsus4': { positions: [[2, 4, 4, 4, 5, 2]], barres: [{fromString: 5, toString: 3, fret: 4}] },
+                };
+                
+                // Try to match with common variations of chord names
+                const normalizedName = normalizeChordName(chordName);
+                return chordLibrary[normalizedName] || null;
+            }
+            
+            // Normalize chord name for matching with library
+            function normalizeChordName(name) {
+                // Common variations
+                const variations = {
+                    // Remove whitespace
+                    trimmed: name.trim(),
+                    
+                    // Standard chord aliases
+                    minor: name.replace(/min|m(?!aj)/i, 'm'),
+                    major: name.replace(/maj(?!7)/i, ''),
+                    seventh: name.replace(/dom|dominant/i, '7'),
+                    
+                    // Just the root note for major chords
+                    root: name.match(/^[A-G][#b]?(?!\w)/i)?.[0] || ''
+                };
+                
+                // Try different variations
+                for (const variant of Object.values(variations)) {
+                    if (variant && typeof variant === 'string') {
+                        // Try to find a match in our chord library
+                        const library = {
+                            // Major chords
+                            'C': true,
+                            'D': true,
+                            'E': true,
+                            'F': true,
+                            'G': true,
+                            'A': true,
+                            'B': true,
+                            
+                            // Minor chords
+                            'Cm': true,
+                            'Dm': true,
+                            'Em': true,
+                            'Fm': true,
+                            'Gm': true,
+                            'Am': true,
+                            'Bm': true,
+                            
+                            // 7th chords
+                            'C7': true,
+                            'D7': true,
+                            'E7': true,
+                            'F7': true,
+                            'G7': true,
+                            'A7': true,
+                            'B7': true,
+                            
+                            // Major 7th chords
+                            'Cmaj7': true,
+                            'Dmaj7': true,
+                            'Emaj7': true,
+                            'Fmaj7': true,
+                            'Gmaj7': true,
+                            'Amaj7': true,
+                            'Bmaj7': true,
+                            
+                            // Sus chords
+                            'Csus4': true,
+                            'Dsus4': true,
+                            'Esus4': true,
+                            'Fsus4': true,
+                            'Gsus4': true,
+                            'Asus4': true,
+                            'Bsus4': true,
+                        };
+                        
+                        if (library[variant]) {
+                            return variant;
+                        }
+                    }
+                }
+                
+                // Basic extraction of root and quality
+                const rootMatch = name.match(/^([A-G][#b]?)/i);
+                if (rootMatch) {
+                    const root = rootMatch[0];
+                    
+                    // Check for common chord qualities
+                    if (name.includes('m') && !name.includes('maj')) return root + 'm';
+                    if (name.includes('7') && !name.includes('maj')) return root + '7';
+                    if (name.includes('maj7')) return root + 'maj7';
+                    if (name.includes('sus4')) return root + 'sus4';
+                    
+                    // Default to major
+                    return root;
+                }
+                
+                return name;
+            }
+            
+            // Update transpose value display
+            function updateTransposeValue() {
+                transposeValue.textContent = transposeInput.value;
+            }
+            
+            // Transpose chords
+            function transposeChords() {
+                const step = parseInt(transposeInput.value, 10);
+                if (currentChords) {
+                    formatAndDisplayChords(); // Temporary - would implement actual transposition here
+                    // In a real implementation, this would use a chord transposition library
+                }
+            }
+            
+            // Update notation (sharps/flats)
+            function updateNotation() {
+                if (currentChords) {
+                    formatAndDisplayChords(); // Temporary - would implement notation conversion here
+                    // In a real implementation, this would convert between sharp and flat notation
+                }
+            }
+            
+            // Print tab
+            function printTab() {
+                window.print();
+            }
+            
+            // Download as PDF
+            function downloadPDF() {
+                if (!currentChords) {
+                    showError("Please load a tab first");
+                    return;
+                }
+                
+                // Process chords for PDF
+                let processedChords = currentChords;
+                
+                // Remove [tab] tags
+                processedChords = processedChords.replace(/\[tab\]/g, '');
+                processedChords = processedChords.replace(/\[\/tab\]/g, '');
+                
+                // Split by newlines
+                const lines = processedChords.split(/\n/g);
+                
+                // Process each line
+                const pdfContent = [];
+                
+                pdfContent.push({ text: currentArtist, style: 'artist' });
+                pdfContent.push({ text: currentSong, style: 'song' });
+                pdfContent.push(' ');
+                
+                // Process each line and convert [ch] tags to bold text
+                for (const line of lines) {
+                    const parts = line.split(/\[ch\]|\[\/ch\]/g);
+                    
+                    if (parts.length === 1) {
+                        // No chord tags in this line
+                        pdfContent.push(parts[0]);
+                    } else {
+                        // Line contains chord tags
+                        const lineParts = [];
+                        
+                        for (let i = 0; i < parts.length; i++) {
+                            if (i % 2 === 0) {
+                                // Regular text
+                                if (parts[i]) {
+                                    lineParts.push(parts[i]);
+                                }
+                            } else {
+                                // Chord text (inside [ch] tags)
+                                if (parts[i]) {
+                                    lineParts.push({ text: parts[i], bold: true });
+                                }
+                            }
+                        }
+                        
+                        pdfContent.push({ text: lineParts });
+                    }
+                }
+                
+                // Add chord diagrams if enabled
+                if (document.getElementById('show-diagrams').checked) {
+                    // Extract all chord names between [ch] tags
+                    const chordRegex = /\[ch\](.*?)\[\/ch\]/g;
+                    const matches = currentChords.matchAll(chordRegex);
+                    
+                    // Collect unique chord names
+                    const uniqueChords = new Set();
+                    for (const match of matches) {
+                        const chordName = match[1].trim();
+                        uniqueChords.add(chordName);
+                    }
+                    
+                    if (uniqueChords.size > 0) {
+                        pdfContent.push({ text: '\n' });
+                        pdfContent.push({ text: 'Chord Diagrams', style: 'subheading' });
+                        
+                        // Create arrays of chord diagrams for layout
+                        const chordDiagrams = [];
+                        let currentRow = [];
+                        
+                        uniqueChords.forEach(chordName => {
+                            currentRow.push({
+                                stack: [
+                                    { text: chordName, alignment: 'center', bold: true },
+                                    { text: getFretboardAscii(chordName), font: 'Courier' }
+                                ],
+                                width: 100,
+                                margin: [0, 0, 20, 20]
+                            });
+                            
+                            // Start a new row after 3 chords
+                            if (currentRow.length === 3) {
+                                chordDiagrams.push({ columns: currentRow });
+                                currentRow = [];
+                            }
+                        });
+                        
+                        // Add any remaining chords
+                        if (currentRow.length > 0) {
+                            chordDiagrams.push({ columns: currentRow });
+                        }
+                        
+                        // Add all diagrams to content
+                        chordDiagrams.forEach(row => {
+                            pdfContent.push(row);
+                        });
+                    }
+                }
+                
+                // Create PDF
+                const fileName = `${currentArtist} - ${currentSong}`.replace(/\W/g, '_').toLowerCase();
+                
+                const docDefinition = {
+                    pageSize: 'A4',
+                    content: pdfContent,
+                    defaultStyle: {
+                        font: 'Courier',
+                        fontSize: 10,
+                        preserveLeadingSpaces: true
+                    },
+                    styles: {
+                        artist: {
+                            fontSize: 14,
+                            bold: true,
+                            margin: [0, 0, 0, 5],
+                            font: 'Helvetica'
+                        },
+                        song: {
+                            fontSize: 12,
+                            margin: [0, 0, 0, 10],
+                            font: 'Helvetica'
+                        },
+                        subheading: {
+                            fontSize: 12,
+                            bold: true,
+                            margin: [0, 20, 0, 10],
+                            font: 'Helvetica'
+                        }
+                    },
+                    // Define the fonts to use
+                    fonts: {
+                        Courier: {
+                            normal: 'Courier',
+                            bold: 'Courier-Bold',
+                            italics: 'Courier-Oblique',
+                            bolditalics: 'Courier-BoldOblique'
+                        },
+                        Helvetica: {
+                            normal: 'Helvetica',
+                            bold: 'Helvetica-Bold',
+                            italics: 'Helvetica-Oblique',
+                            bolditalics: 'Helvetica-BoldOblique'
+                        }
+                    }
+                };
+                
+                pdfMake.createPdf(docDefinition).download(fileName);
+            }
+            
+            // Generate ASCII fretboard diagram for PDF
+            function getFretboardAscii(chordName) {
+                const chordDef = getChordDefinition(chordName);
+                if (!chordDef) {
+                    return "Chord not in library";
+                }
+                
+                const positions = chordDef.positions[0];
+                const barres = chordDef.barres || [];
+                
+                // Find highest fret position to determine diagram range
+                let maxFret = 0;
+                for (let i = 0; i < positions.length; i++) {
+                    if (positions[i] > maxFret) {
+                        maxFret = positions[i];
+                    }
+                }
+                
+                // Determine starting fret (for higher position chords)
+                let startFret = 1;
+                if (maxFret > 5) {
+                    startFret = Math.max(1, maxFret - 4);
+                }
+                
+                // Build the ASCII fretboard
+                let diagram = '';
+                
+                // String labels
+                diagram += 'E |';
+                diagram += positions[0] === 0 ? 'o|' : (positions[0] === -1 ? 'x|' : '-|');
+                diagram += '\n';
+                
+                diagram += 'B |';
+                diagram += positions[1] === 0 ? 'o|' : (positions[1] === -1 ? 'x|' : '-|');
+                diagram += '\n';
+                
+                diagram += 'G |';
+                diagram += positions[2] === 0 ? 'o|' : (positions[2] === -1 ? 'x|' : '-|');
+                diagram += '\n';
+                
+                diagram += 'D |';
+                diagram += positions[3] === 0 ? 'o|' : (positions[3] === -1 ? 'x|' : '-|');
+                diagram += '\n';
+                
+                diagram += 'A |';
+                diagram += positions[4] === 0 ? 'o|' : (positions[4] === -1 ? 'x|' : '-|');
+                diagram += '\n';
+                
+                diagram += 'E |';
+                diagram += positions[5] === 0 ? 'o|' : (positions[5] === -1 ? 'x|' : '-|');
+                diagram += '\n';
+                
+                // Frets (typically show 4 frets)
+                for (let fret = startFret; fret < startFret + 5; fret++) {
+                    // Add fret number on first string
+                    diagram += fret + ' |';
+                    
+                    // Add fret for high E string
+                    if (positions[0] === fret) {
+                        diagram += 'O|';
+                    } else {
+                        // Check if this fret has a barre
+                        let hasBarre = false;
+                        for (const barre of barres) {
+                            if (barre.fret === fret && barre.fromString <= 1 && barre.toString >= 1) {
+                                hasBarre = true;
+                                break;
+                            }
+                        }
+                        diagram += hasBarre ? '-|' : '-|';
+                    }
+                    diagram += '\n';
+                    
+                    // Add fret for B string
+                    diagram += '  |';
+                    if (positions[1] === fret) {
+                        diagram += 'O|';
+                    } else {
+                        // Check if this fret has a barre
+                        let hasBarre = false;
+                        for (const barre of barres) {
+                            if (barre.fret === fret && barre.fromString <= 2 && barre.toString >= 2) {
+                                hasBarre = true;
+                                break;
+                            }
+                        }
+                        diagram += hasBarre ? '-|' : '-|';
+                    }
+                    diagram += '\n';
+                    
+                    // Add fret for G string
+                    diagram += '  |';
+                    if (positions[2] === fret) {
+                        diagram += 'O|';
+                    } else {
+                        // Check if this fret has a barre
+                        let hasBarre = false;
+                        for (const barre of barres) {
+                            if (barre.fret === fret && barre.fromString <= 3 && barre.toString >= 3) {
+                                hasBarre = true;
+                                break;
+                            }
+                        }
+                        diagram += hasBarre ? '-|' : '-|';
+                    }
+                    diagram += '\n';
+                    
+                    // Add fret for D string
+                    diagram += '  |';
+                    if (positions[3] === fret) {
+                        diagram += 'O|';
+                    } else {
+                        // Check if this fret has a barre
+                        let hasBarre = false;
+                        for (const barre of barres) {
+                            if (barre.fret === fret && barre.fromString <= 4 && barre.toString >= 4) {
+                                hasBarre = true;
+                                break;
+                            }
+                        }
+                        diagram += hasBarre ? '-|' : '-|';
+                    }
+                    diagram += '\n';
+                    
+                    // Add fret for A string
+                    diagram += '  |';
+                    if (positions[4] === fret) {
+                        diagram += 'O|';
+                    } else {
+                        // Check if this fret has a barre
+                        let hasBarre = false;
+                        for (const barre of barres) {
+                            if (barre.fret === fret && barre.fromString <= 5 && barre.toString >= 5) {
+                                hasBarre = true;
+                                break;
+                            }
+                        }
+                        diagram += hasBarre ? '-|' : '-|';
+                    }
+                    diagram += '\n';
+                    
+                    // Add fret for low E string
+                    diagram += '  |';
+                    if (positions[5] === fret) {
+                        diagram += 'O|';
+                    } else {
+                        // Check if this fret has a barre
+                        let hasBarre = false;
+                        for (const barre of barres) {
+                            if (barre.fret === fret && barre.fromString <= 6 && barre.toString >= 6) {
+                                hasBarre = true;
+                                break;
+                            }
+                        }
+                        diagram += hasBarre ? '-|' : '-|';
+                    }
+                    diagram += '\n';
+                }
+                
+                return diagram;
+            }
+            
+            // Show error message
+            function showError(message) {
+                errorMessage.textContent = message;
+                errorMessage.style.display = 'block';
+            }
+            
+            // Hide error message
+            function hideError() {
+                errorMessage.style.display = 'none';
+            }
+            
+            // Show/hide loading indicator
+            function showLoading(show) {
+                loading.style.display = show ? 'block' : 'none';
+            }
+            
+            // Auto-load a tab if URL is in query parameter
+            const urlParams = new URLSearchParams(window.location.search);
+            const tabUrl = urlParams.get('url');
+            if (tabUrl) {
+                urlInput.value = tabUrl;
+                loadTab();
+            }
+            
+            // Load example tab
+            const exampleUrl = 'https://tabs.ultimate-guitar.com/tab/the-tragically-hip/boots-or-hearts-chords-86508';
+            urlInput.value = exampleUrl;
+            
+            // Function to load the example tab directly
+            function loadExampleTab() {
+                hideError();
+                showLoading(true);
+                
+                // Hardcoded example tab content - this is what was in your original example
+                const exampleContent = `Boots or Hearts - The Tragically Hip
+From the LP Up to Here
+ 
+Original transcription by:
+Duncan
+sports2@genie.geis.com
+ 
+Editing and changes:
+Gord Murdoch
+jm94bu@badger.ac.BrockU.CA
+ 
+Tune A string down to G
+Note: Use an upstroke when striking the the open 3rd string (G)
+ 
+ 
+[Intro]
+ 
+e|-------------------------------------------------------------------------|
+B|--0---0------------------------------------------------------------------|
+G|--4\\2-0--0-0---0--0---0-0--------0--0-0---0-----------0--------0---------|
+D|------0--0-0---0--0---0-0-----------0-0---0--0-/3-2-0--------------------|
+G|-------------0------0------0-3/4--------0----------------0-3/4-----------|
+E|-------------------------------------------------------------------------|
+ 
+e|-------------------------------------------------------------------------|
+B|-------------------------------------------------------------------------|
+G|--0-0---0--0---0-0--------0--0-0---0---0-0-0-0-0-0-0-0-------------------|
+D|--0-0---0--0---0-0-----------0-0---0--/5-5-5-5-5-5-5-5-------------------|
+G|------0------0------0-3/4--------0---------------------------------------|
+E|-------------------------------------------------------------------------|
+ 
+ C and D chords alternate between these chords:
+ 
+   C     -5-    -6-      D    -7-    -8-|
+ chord   -5- => -5-    chord  -7- => -7-|
+         -5-    -7-           -7-    -9-|
+ 
+ 
+[Fill A]               [Fill B]
+ 
+e|---------------      e|---------------|
+B|---------------      B|---------------|
+G|---------0-----      G|---------------|
+D|-0-3-2-0-------      D|-3\\2-0-2p0-----|
+G|---------------      G|-----------3p0-|
+E|---------------      E|---------------|
+ 
+ 
+[Fill C]               [Fill D]
+ 
+e|----------------     e|----------------|
+B|--6-5---6-5-3-0-     B|-6-5---6-5-6/8--|
+G|--5-5-5-5-5-3-0-     G|-5-5---5-5-5/7--|
+D|----------------     D|-----5-7-5-7/9--|
+G|----------------     G|----------------|
+E|----------------     E|----------------|
+ 
+ 
+[Verse 1]
+ 
+G
+Well I think that there's a problem here
+G                               Fill B
+her voice just don't sound right
+G
+but I left myself on her answering machine
+G                                Fill A
+said "I'm back in town tonight."
+C
+I feel I've stepped out of the wilderness
+C                           Fill D
+all squint-eyed and confused
+G
+but even babies raised by wolves
+G                                        Fill B
+they know exactly when they've been used
+ 
+ 
+[Chorus]
+ 
+C                    D
+See when it starts to fall apart,
+  G                  Fill A
+it really falls apart
+     C                  D
+like boots or hearts, oh when they start
+     G                Fill A
+they really fall apart
+ 
+ 
+[Verse 2]
+ 
+G
+Fingers and toes, fingers and toes,
+G                    Fill C
+forty things we share
+G
+forty-one if you include,
+G
+the fact that we don't care
+C
+now you've blocked off most of main street
+C                    Fill D
+for your faith parade
+G
+everyone in town now, they probably all agree
+G
+I'm lying in the bed I made
+ 
+ 
+[Chorus]
+ 
+C                    D
+See when it starts to fall apart,
+  G                  Fill A
+it really falls apart
+     C                  D
+like boots or hearts, oh when they start
+     G                Fill A
+they really fall apart
+ 
+ 
+[Solo]
+ 
+ 
+[Verse 3]
+ 
+G
+Now you won't even let me talk to you
+G
+we got some air to clear
+G
+we'd probably only agree on one thing anyway
+G                                      Fill C
+that's what the hell is happening here?
+C
+fingers and toes, fingers and toes
+C                    Fill D
+forty things we share
+G
+forty-one if you include
+G
+the fact that we don't care
+ 
+ 
+[Chorus]
+ 
+C                    D
+See when it starts to fall apart,
+  G                  Fill A
+it really falls apart
+     C                  D
+like boots or hearts, oh when they start
+     G                Fill A
+they really fall apart
+ 
+ 
+************************************
+ 
+| \\  Slide down
+| /  Slide up
+| p  Pull-off
+ 
+************************************`;
+                
+                // Process the example content
+                currentArtist = "The Tragically Hip";
+                currentSong = "Boots or Hearts";
+                currentChords = exampleContent;
+                
+                // Update UI
+                artistEl.textContent = currentArtist;
+                songEl.textContent = currentSong;
+                
+                // Format and display chords
+                formatAndDisplayChords();
+                
+                showLoading(false);
+            }
+            
+            // Make ChordBox available globally (required for VexChords)
+            window.ChordBox = vexchords.ChordBox;
+        });
+    </script>
+</body>
+</html>
